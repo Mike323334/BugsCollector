@@ -1,0 +1,47 @@
+Python, FastAPI, JavaScript, Alpaca Market Data API, REST API
+Preventing Fake Historical Stock Data for Invalid Tickers
+Fixed a bug in TradingApp where invalid stock symbols returned fabricated historical prices instead of an error. Removed mock-data fallbacks from the historical data retrieval function so the application no longer treats generated prices as
+
+View bug screenshots and notes (2)
+Screenshot 1 for Preventing Fake Historical Stock Data for Invalid Tickers
+Tested the historical data endpoint using the invalid ticker INVALIDXYZ12. It shouldnt show me any data regarding the price because that stock doesn't exist.
+Screenshot 2 for Preventing Fake Historical Stock Data for Invalid Tickers
+This is one the changes I made so the invalid stock gave nothing instead of a constant  changing price and values.
+Read the repair notes
+The problem
+When a user entered an invalid stock symbol, such as INVALIDXYZ12, the application displayed historical price data as if the symbol were valid.
+
+The backend returned a successful HTTP 200 response containing 30 historical price records. These records included opening prices, closing prices, daily highs and lows, and trading volumes.
+
+The frontend continued requesting data approximately every 10 seconds, causing the chart to keep updating even though the requested ticker was invalid.
+
+This behavior was misleading because users could mistake fabricated prices for genuine market data.
+
+Root cause
+The problem originated in the backend's get_historical_data() function in backend/trading/stock_service.py.
+
+The function retrieved historical bars from the Alpaca Market Data API. However, when the API returned no bars, returned an empty result, or raised an exception, the application fell back to _get_mock_historical().
+
+That fallback generated artificial historical price records, allowing the endpoint to return fabricated data with a successful response.
+
+The frontend was not the original source of the problem. It was displaying the data supplied by the backend.
+
+The fix
+Modified get_historical_data() to stop generating mock historical prices when real market data is unavailable.
+
+Three fallback paths were addressed:
+
+When the API response contains no historical bars, the function returns an empty list.
+When the request completes but no historical records are available, the function returns an empty list.
+When an exception occurs during historical data retrieval, the function logs the error and returns an empty list instead of generating mock records.
+
+This prevents those failure paths from supplying fabricated historical prices to the chart.
+
+Result
+ested the historical data endpoint using the invalid ticker INVALIDXYZ12.
+
+Before the fix, the endpoint returned status: "success" and 30 historical price records, despite the ticker being invalid.
+
+After the fix, the backend no longer generates mock historical records through the three modified fallback paths. The endpoint can now report that no historical data is available instead of supplying fabricated prices.
+
+The fix improves data integrity by ensuring that unavailable historical data is not silently replaced with generated price records.
